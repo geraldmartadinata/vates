@@ -28,24 +28,29 @@ async def lifespan(app: FastAPI):
 
     # Init bot (hanya jika token dikonfigurasi)
     if settings.telegram_bot_token:
-        bot_app = Application.builder().token(settings.telegram_bot_token).build()
+        try:
+            bot_app = Application.builder().token(settings.telegram_bot_token).build()
 
-        # Inject session factory ke bot_data agar handler bisa akses DB
-        bot_app.bot_data["session_factory"] = async_session_factory
+            # Inject session factory ke bot_data agar handler bisa akses DB
+            bot_app.bot_data["session_factory"] = async_session_factory
 
-        # Register handlers
-        bot_app.add_handler(CommandHandler("start", start))
-        bot_app.add_handler(CommandHandler("saham", saham))
-        bot_app.add_handler(CommandHandler("indikator", indikator))
-        bot_app.add_error_handler(error)
+            # Register handlers
+            bot_app.add_handler(CommandHandler("start", start))
+            bot_app.add_handler(CommandHandler("saham", saham))
+            bot_app.add_handler(CommandHandler("indikator", indikator))
+            bot_app.add_error_handler(error)
 
-        await bot_app.initialize()
-        poll_task = asyncio.create_task(bot_app.start())
+            # PTB v20+: initialize → updater.start_polling → start
+            await bot_app.initialize()
+            await bot_app.updater.start_polling()
+            await bot_app.start()
 
-        global _bot_app
-        _bot_app = bot_app
+            global _bot_app
+            _bot_app = bot_app
 
-        logger.info("Telegram bot polling started")
+            logger.info("Telegram bot polling started")
+        except Exception as e:
+            logger.exception("Failed to start Telegram bot: %s", e)
     else:
         logger.warning("TELEGRAM_BOT_TOKEN not set — bot disabled")
 
@@ -53,7 +58,11 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     if _bot_app:
-        await _bot_app.stop()
+        try:
+            await _bot_app.updater.stop()
+            await _bot_app.stop()
+        except Exception:
+            pass
         logger.info("Telegram bot stopped")
     await engine.dispose()
 

@@ -24,9 +24,13 @@ def _code(text: str) -> str:
     return f"<code>{text}</code>" if text else ""
 
 
-def _escape(text: float | int) -> str:
-    """Format angka dengan pemisah ribuan."""
+def _escape(text: float | int | None) -> str:
+    """Format angka dengan pemisah ribuan. NaN → 'N/A'."""
+    if text is None:
+        return "N/A"
     if isinstance(text, float):
+        if text != text:  # NaN check
+            return "N/A"
         return f"{text:,.2f}"
     return f"{text:,}"
 
@@ -82,6 +86,15 @@ async def saham(update, context):
 
         if df is None or (isinstance(df, list) and len(df) == 0):
             raise RuntimeError("Data kosong")
+
+        # Buang baris tanpa harga (hari ini yg belum tutup → NaN)
+        if isinstance(df, list):
+            df = [r for r in df if r.close is not None and not (r.close != r.close)]
+        else:
+            df = df.dropna(subset=["close"]).copy()
+
+        if len(df) == 0:
+            raise RuntimeError(f"Tidak ada data harga valid untuk {ticker}.")
 
         # Ambil baris terakhir
         if isinstance(df, list):
@@ -147,14 +160,16 @@ async def indikator(update, context):
         if df is None or (isinstance(df, list) and len(df) == 0):
             raise RuntimeError("Data kosong — coba kode saham lain.")
 
-        # Convert list → DataFrame jika perlu
+        # Buang baris tanpa close (hari ini yg belum tutup → NaN)
         if isinstance(df, list):
             import pandas as pd
-            records = [
-                {"close": r.close, "date": r.date}
-                for r in df
-            ]
-            df = pd.DataFrame(records)
+            df = [r for r in df if r.close is not None and not (r.close != r.close)]
+            df = pd.DataFrame([{"close": r.close, "date": r.date} for r in df])
+        else:
+            df = df.dropna(subset=["close"]).copy()
+
+        if len(df) == 0:
+            raise RuntimeError(f"Tidak ada data harga valid untuk {ticker}.")
 
         enriched = compute_all(df, dropna=True)
 
