@@ -1,0 +1,25 @@
+# Web framework
+fastapi==0.136.3
+uvicorn[standard]==0.40.0
+
+# Database
+sqlalchemy[asyncio]==2.0.51
+aiosqlite==0.20.0
+
+# Validation & config
+pydantic==2.12.3
+pydantic-settings==2.7.0
+
+# Telegram bot
+python-telegram-bot==21.9
+
+# Financial data — OpenBB core + yfinance provider only
+openbb-core==1.6.13
+openbb-yfinance==1.6.3
+yfinance==1.5.1
+
+# Testing
+pytest==9.1.1
+pytest-asyncio==1.4.0
+httpx==0.28.1
+pytest-httpx==0.36.2
