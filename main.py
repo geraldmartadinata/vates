@@ -1,18 +1,60 @@
 from contextlib import asynccontextmanager
 
+import asyncio
+import logging
+
 from fastapi import FastAPI
+from telegram.ext import Application, CommandHandler
 
 from app.config import get_settings
-from app.database import Base, engine
+from app.database import Base, async_session_factory, engine
 from app.router import router
+
+from app.bot import start, saham, indikator, error
+
+logger = logging.getLogger(__name__)
+
+_bot_app: Application | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: create tables. Shutdown: dispose engine."""
+    """Startup: DB tables + Telegram Polling. Shutdown: cleanup."""
+    settings = get_settings()
+
+    # Init DB
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Init bot (hanya jika token dikonfigurasi)
+    if settings.telegram_bot_token:
+        bot_app = Application.builder().token(settings.telegram_bot_token).build()
+
+        # Inject session factory ke bot_data agar handler bisa akses DB
+        bot_app.bot_data["session_factory"] = async_session_factory
+
+        # Register handlers
+        bot_app.add_handler(CommandHandler("start", start))
+        bot_app.add_handler(CommandHandler("saham", saham))
+        bot_app.add_handler(CommandHandler("indikator", indikator))
+        bot_app.add_error_handler(error)
+
+        await bot_app.initialize()
+        poll_task = asyncio.create_task(bot_app.start())
+
+        global _bot_app
+        _bot_app = bot_app
+
+        logger.info("Telegram bot polling started")
+    else:
+        logger.warning("TELEGRAM_BOT_TOKEN not set — bot disabled")
+
     yield
+
+    # Shutdown
+    if _bot_app:
+        await _bot_app.stop()
+        logger.info("Telegram bot stopped")
     await engine.dispose()
 
 
