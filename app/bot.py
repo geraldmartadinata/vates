@@ -51,7 +51,8 @@ async def start(update, context):
         f"{_bold('Vates Bot — Analitik Kuantitatif IHSG')}\n\n"
         f"Perintah tersedia:\n"
         f"  {_code('/saham BBCA')} — Harga terkini\n"
-        f"  {_code('/indikator BBCA')} — Indikator teknikal\n\n"
+        f"  {_code('/indikator BBCA')} — Indikator teknikal\n"
+        f"  {_code('/prediksi BBCA')} — Probabilitas arah 1d/7d/30d\n\n"
         f"{_bold('Tips')}: cukup nama saham, suffix .JK ditambah otomatis.",
         parse_mode="HTML",
     )
@@ -226,6 +227,62 @@ async def indikator(update, context):
         ohlcv_row = f"⛔ Gagal memproses indikator {ticker}. Coba lagi nanti."
 
     await update.message.reply_text(ohlcv_row, parse_mode="HTML")
+
+
+async def prediksi(update, context):
+    """Tampilkan probabilitas arah (up/down) per horizon."""
+    if not context.args:
+        await update.message.reply_text(
+            f"Masukkan kode saham.\n\n{_ticker_help()}",
+            parse_mode="HTML",
+        )
+        return
+
+    raw = context.args[0].strip().upper()
+    ticker = normalize_ticker(raw)
+
+    try:
+        session_factory = context.bot_data.get("session_factory")
+        if not session_factory:
+            await update.message.reply_text("Prediksi belum siap. Coba lagi nanti.")
+            return
+
+        from services.forecast import predict_all
+
+        async with session_factory() as db_sesh:
+            preds = await predict_all(db_sesh, raw)
+
+        if not preds:
+            await update.message.reply_text(
+                f"Data untuk {ticker} belum cukup untuk prediksi."
+            )
+            return
+
+        def arrow(prob):
+            if prob > 0.6:
+                return "Naik ▲"
+            if prob < 0.4:
+                return "Turun ▼"
+            return "Ragu ➖"
+
+        lines = [
+            f"{_bold(f'{ticker} — Prediksi')}",
+            "",
+        ]
+        for p in preds:
+            prob = p["prob_up"]
+            h = p["horizon"]
+            lines.append(f"{_code(f'{h:>3d} hari  : {prob:.1%} {arrow(prob)}')}")
+        lines.append("")
+        lines.append("<i>Prob = peluang harga naik. Model v1-logreg, "
+                     "otomatis belajar dari hasil harian.</i>")
+        await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+    except Exception as e:
+        logger.exception("Error predicting %s", ticker)
+        await update.message.reply_text(
+            f"⛔ Gagal memprediksi {ticker}. Coba lagi nanti."
+        )
 
 
 async def error(update, context):
