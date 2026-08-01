@@ -13,7 +13,10 @@ from datetime import date
 import numpy as np
 import pandas as pd
 import yfinance as yf
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db
 from services.data_engine import _prepare_df, normalize_ticker
 from services.indicators import compute_all
 
@@ -181,3 +184,114 @@ async def get_indicators(ticker: str, period: str = "6mo"):
     except Exception as e:
         logger.exception("Error computing indicators for %s", normalized)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/v1/rankings/{horizon}")
+async def get_rankings(
+    horizon: int,
+    top_n: int = 5,
+    db: AsyncSession = Depends(get_db),
+):
+    """Ranking saham: top & bottom berdasarkan probabilitas naik.
+
+    Args:
+        horizon: 1, 7, atau 30 hari.
+        top_n: Jumlah entri top/bottom (default 5).
+
+    Returns:
+        JSON: horizon, generated_at, top, bottom.
+    """
+    if horizon not in (1, 7, 30):
+        raise HTTPException(status_code=400, detail="horizon harus 1, 7, atau 30")
+
+    from services.rankings import latest_predictions, rank_predictions
+
+    preds = await latest_predictions(db, horizon=horizon)
+    ranked = rank_predictions(preds, horizon=horizon, top_n=top_n)
+    return {
+        "horizon": horizon,
+        "generated_at": date.today().isoformat(),
+        "top": ranked["top"],
+        "bottom": ranked["bottom"],
+    }
+
+
+@router.get("/api/v1/predict/{ticker}")
+async def get_prediction(ticker: str, db: AsyncSession = Depends(get_db)):
+    """Prediksi terbaru per horizon untuk satu saham.
+
+    Args:
+        ticker: Kode saham (contoh: BBCA).
+
+    Returns:
+        JSON: ticker, preds (list per horizon), recommendation.
+    """
+    from services.forecast import predict_all
+    from services.rankings import latest_predictions, recommendation
+
+    raw = ticker.strip().upper()
+    normalized = normalize_ticker(raw)
+
+    # Cek prediksi tersimpan terbaru dulu
+    preds = await latest_predictions(db, horizon=None)
+    ticker_preds = [p for p in preds if p["ticker"] == raw.removesuffix(".JK")]
+
+    # Kalau belum ada di DB, hitung live (refit model)
+    if not ticker_preds:
+        try:
+            live = await predict_all(db, raw)
+            ticker_preds = [
+                {
+                    "ticker": raw.removesuffix(".JK"),
+                    "horizon_days": p["horizon"],
+                    "predicted_prob": p["prob_up"],
+                    "predicted_label": p["label"],
+                    "model_version": p["model_version"],
+                    "created_at": None,
+                }
+                for p in live
+            ]
+        except Exception as e:
+            logger.exception("Live predict %s gagal", normalized)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    if not ticker_preds:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Belum ada prediksi untuk {normalized}.",
+        )
+
+    prob_30 = next(
+        (p["predicted_prob"] for p in ticker_preds if p["horizon_days"] == 30),
+        None,
+    )
+    rec = recommendation(prob_30, None)
+    return {
+        "ticker": raw.removesuffix(".JK"),
+        "preds": ticker_preds,
+        "recommendation": rec,
+    }
+
+
+@router.post("/api/v1/analyze/{ticker}")
+async def analyze(ticker: str, db: AsyncSession = Depends(get_db)):
+    """Analisis lengkap: prediksi segar + harga + rekomendasi.
+
+    Args:
+        ticker: Kode saham (contoh: BBCA).
+
+    Returns:
+        JSON: ticker, close, macd_hist, preds, recommendation.
+    """
+    from services.forecast import analyze_ticker
+
+    raw = ticker.strip().upper()
+    normalized = normalize_ticker(raw)
+
+    try:
+        result = await analyze_ticker(db, raw)
+    except Exception as e:
+        logger.exception("Analyze %s gagal", normalized)
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return result

@@ -19,7 +19,11 @@ class Settings(BaseSettings):
 
     # --- Scheduler ---
     schedule_time: str = "16:30"                      # WIB, setelah IDX tutup
-    scheduler_watchlist: str = "BBCA,ASII,TLKM,BBRI,UNVR"
+    scheduler_watchlist: str = (
+        "BBCA,ASII,TLKM,BBRI,UNVR,"
+        "BBNI,BMRI,INDF,ICBP,GOTO,"
+        "ANTM,MDKA,KLBF,PTBA,ADRO"
+    )
 
     # --- Data engine ---
     fetch_retries: int = 3
