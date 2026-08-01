@@ -4,6 +4,7 @@ Menyediakan: normalize_ticker, fetch_historical.
 Isolasi provider di satu file — swap provider tinggal ganti dalam sini.
 """
 
+import asyncio
 import logging
 import re
 from datetime import date, timedelta
@@ -12,6 +13,7 @@ import pandas as pd
 import yfinance as yf
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from services.cache import get_cached_prices, is_cache_fresh, save_prices
 
 logger = logging.getLogger(__name__)
@@ -92,14 +94,28 @@ async def fetch_historical(
                 return cached
             # fall-through: cache stale atau kosong, fetch API
 
-    # --- Fetch dari yfinance ---
-    logger.info("Cache MISS — fetch yfinance untuk %s", ticker)
-    try:
-        yf_ticker = yf.Ticker(ticker)
-        df = yf_ticker.history(period=period, interval=interval)
-    except Exception as exc:
+    # --- Fetch dari yfinance (retry exponential backoff) ---
+    settings = get_settings()
+    retries = settings.fetch_retries
+    backoff = settings.fetch_backoff_seconds
+
+    last_exc: Exception | None = None
+    for attempt in range(1, retries + 1):
+        try:
+            yf_ticker = yf.Ticker(ticker)
+            df = yf_ticker.history(period=period, interval=interval)
+            break
+        except Exception as exc:
+            last_exc = exc
+            logger.warning(
+                "fetch %s percobaan %d/%d gagal: %s",
+                ticker, attempt, retries, exc,
+            )
+            if attempt < retries:
+                await asyncio.sleep(backoff * (2 ** (attempt - 1)))
+    else:
         raise RuntimeError(
-            f"Gagal mengambil data {ticker}: {exc}"
+            f"Gagal mengambil data {ticker} setelah {retries} percobaan: {last_exc}"
         )
 
     if df is None or df.empty:

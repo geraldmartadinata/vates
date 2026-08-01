@@ -11,12 +11,11 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import select
 
+from app.config import get_settings
 from app.models import News, Prediction
 from services.cache import get_cached_prices
 
 logger = logging.getLogger(__name__)
-
-EVENT_SENTIMENT_THRESHOLD = 0.3
 
 
 async def resolve_pending(session, ticker: str) -> int:
@@ -75,6 +74,7 @@ async def _actual_return(session, ticker: str, pred: Prediction) -> float | None
 
 async def _classify_miss(session, ticker: str, pred: Prediction) -> str:
     """Cek ada berita kontra-arah berdampak besar → 'event', else 'model'."""
+    threshold = get_settings().event_sentiment_threshold
     end = pred.created_at + timedelta(days=pred.horizon_days)
     news_rows = (
         (
@@ -95,6 +95,6 @@ async def _classify_miss(session, ticker: str, pred: Prediction) -> str:
         if n.sentiment_score is None:
             continue
         contradicts = (n.sentiment_score < 0) if expected_up else (n.sentiment_score > 0)
-        if contradicts and abs(n.sentiment_score) >= EVENT_SENTIMENT_THRESHOLD:
+        if contradicts and abs(n.sentiment_score) >= threshold:
             return "event"
     return "model"

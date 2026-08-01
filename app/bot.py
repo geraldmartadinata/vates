@@ -8,6 +8,9 @@ Commands:
 
 import logging
 
+from sqlalchemy import select
+
+from app.models import User, UserWatchlist
 from services.data_engine import fetch_historical, normalize_ticker
 from services.indicators import compute_all
 
@@ -42,18 +45,62 @@ def _ticker_help() -> str:
     )
 
 
+def _get_user_id(update) -> int:
+    """Ambil telegram_id dari update."""
+    if update.effective_user:
+        return update.effective_user.id
+    if update.effective_message and update.effective_message.from_user:
+        return update.effective_message.from_user.id
+    raise RuntimeError("User tidak teridentifikasi")
+
+
+async def _ensure_user(session, update) -> User:
+    """Auto-register user pertama kali. Return User row (ada di session)."""
+    telegram_id = _get_user_id(update)
+    user = (
+        await session.execute(select(User).where(User.telegram_id == telegram_id))
+    ).scalar_one_or_none()
+
+    if user is None:
+        u = update.effective_user
+        user = User(
+            telegram_id=telegram_id,
+            username=u.username if u else None,
+            first_name=u.first_name if u else None,
+        )
+        session.add(user)
+        await session.commit()
+        logger.info("User baru terdaftar: %s (%s)", telegram_id, u.username if u else "?")
+    else:
+        # Update last_active
+        from datetime import datetime
+        user.last_active_at = datetime.utcnow()
+        await session.commit()
+    return user
+
+
 # --- Handlers ---
 
 
 async def start(update, context):
     """Kirim pesan sambutan."""
+    # Auto-register user
+    session_factory = context.bot_data.get("session_factory")
+    if session_factory:
+        async with session_factory() as db_sesh:
+            await _ensure_user(db_sesh, update)
+
     await update.message.reply_text(
         f"{_bold('Vates Bot — Analitik Kuantitatif IHSG')}\n\n"
         f"Perintah tersedia:\n"
         f"  {_code('/saham BBCA')} — Harga terkini\n"
         f"  {_code('/indikator BBCA')} — Indikator teknikal\n"
-        f"  {_code('/prediksi BBCA')} — Probabilitas arah 1d/7d/30d\n\n"
-        f"{_bold('Tips')}: cukup nama saham, suffix .JK ditambah otomatis.",
+        f"  {_code('/prediksi BBCA')} — Probabilitas arah 1d/7d/30d\n"
+        f"  {_code('/watch add BBCA')} — Tambah ke watchlist\n"
+        f"  {_code('/watch remove BBCA')} — Hapus dari watchlist\n"
+        f"  {_code('/watch list')} — Lihat watchlist\n\n"
+        f"{_bold('Tips')}: cukup nama saham, suffix .JK ditambah otomatis.\n"
+        f"Watchlist-mu ikut diproses pipeline prediksi harian.",
         parse_mode="HTML",
     )
 
@@ -282,6 +329,121 @@ async def prediksi(update, context):
         logger.exception("Error predicting %s", ticker)
         await update.message.reply_text(
             f"⛔ Gagal memprediksi {ticker}. Coba lagi nanti."
+        )
+
+
+async def watch(update, context):
+    """Kelola watchlist per user: add / remove / list."""
+    session_factory = context.bot_data.get("session_factory")
+    if not session_factory:
+        await update.message.reply_text("Layanan belum siap. Coba lagi nanti.")
+        return
+
+    if not context.args:
+        await update.message.reply_text(
+            f"Gunakan: {_code('/watch add BBCA')} | "
+            f"{_code('/watch remove BBCA')} | {_code('/watch list')}",
+            parse_mode="HTML",
+        )
+        return
+
+    action = context.args[0].lower()
+
+    async with session_factory() as db_sesh:
+        try:
+            user = await _ensure_user(db_sesh, update)
+        except Exception:
+            await update.message.reply_text("Gagal identifikasi user.")
+            return
+
+        # --- LIST ---
+        if action == "list":
+            rows = (
+                await db_sesh.execute(
+                    select(UserWatchlist)
+                    .where(UserWatchlist.user_id == user.id)
+                    .order_by(UserWatchlist.created_at.asc())
+                )
+            ).scalars().all()
+            if not rows:
+                await update.message.reply_text(
+                    "Watchlist kosong. Tambah dengan "
+                    f"{_code('/watch add BBCA')}",
+                    parse_mode="HTML",
+                )
+                return
+            tickers = [r.ticker.removesuffix(".JK") for r in rows]
+            await update.message.reply_text(
+                f"{_bold('Watchlist-mu')} ({len(tickers)})\n"
+                + "\n".join(f"  {_code(t)}" for t in tickers),
+                parse_mode="HTML",
+            )
+            return
+
+        if len(context.args) < 2:
+            await update.message.reply_text(
+                f"Gunakan: {_code('/watch add BBCA')} atau "
+                f"{_code('/watch remove BBCA')}",
+                parse_mode="HTML",
+            )
+            return
+
+        raw = context.args[1].strip().upper()
+        ticker = normalize_ticker(raw)
+
+        # --- ADD ---
+        if action == "add":
+            existing = (
+                await db_sesh.execute(
+                    select(UserWatchlist).where(
+                        UserWatchlist.user_id == user.id,
+                        UserWatchlist.ticker == ticker,
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing:
+                await update.message.reply_text(
+                    f"{ticker} sudah ada di watchlist-mu.",
+                    parse_mode="HTML",
+                )
+                return
+            db_sesh.add(UserWatchlist(user_id=user.id, ticker=ticker))
+            await db_sesh.commit()
+            await update.message.reply_text(
+                f"{_bold(ticker)} ditambahkan ke watchlist-mu. "
+                f"Ikut diproses prediksi harian.",
+                parse_mode="HTML",
+            )
+            return
+
+        # --- REMOVE ---
+        if action == "remove":
+            row = (
+                await db_sesh.execute(
+                    select(UserWatchlist).where(
+                        UserWatchlist.user_id == user.id,
+                        UserWatchlist.ticker == ticker,
+                    )
+                )
+            ).scalar_one_or_none()
+            if not row:
+                await update.message.reply_text(
+                    f"{ticker} tidak ada di watchlist-mu.",
+                    parse_mode="HTML",
+                )
+                return
+            await db_sesh.delete(row)
+            await db_sesh.commit()
+            await update.message.reply_text(
+                f"{ticker} dihapus dari watchlist-mu.",
+                parse_mode="HTML",
+            )
+            return
+
+        await update.message.reply_text(
+            f"Perintah tidak dikenal: {_code(action)}. "
+            f"Pakai add/remove/list.",
+            parse_mode="HTML",
         )
 
 

@@ -1,6 +1,5 @@
 from contextlib import asynccontextmanager
 
-import asyncio
 import logging
 
 from fastapi import FastAPI
@@ -10,28 +9,26 @@ from app.config import get_settings
 from app.database import Base, async_session_factory, engine
 from app.router import router
 
-from app.bot import start, saham, indikator, prediksi, error
-from services.scheduler import daily_loop
+from app.bot import start, saham, indikator, prediksi, watch, error
 
 logger = logging.getLogger(__name__)
 
 _bot_app: Application | None = None
-_scheduler_task: asyncio.Task | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: DB tables + Telegram Polling. Shutdown: cleanup."""
+    """Startup: DB tables + Telegram Polling. Shutdown: cleanup.
+
+    NOTE: Scheduler TIDAK dijalankan di sini — jalan sebagai proses
+    standalone (`python -m services.scheduler`) agar API restart tidak
+    mematikan pipeline harian.
+    """
     settings = get_settings()
 
     # Init DB
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-
-    # Start scheduler 24/7 (fetch → feedback → predict harian)
-    global _scheduler_task
-    _scheduler_task = asyncio.create_task(daily_loop())
-    logger.info("Scheduler harian dimulai")
 
     # Init bot (hanya jika token dikonfigurasi)
     if settings.telegram_bot_token:
@@ -46,6 +43,7 @@ async def lifespan(app: FastAPI):
             bot_app.add_handler(CommandHandler("saham", saham))
             bot_app.add_handler(CommandHandler("indikator", indikator))
             bot_app.add_handler(CommandHandler("prediksi", prediksi))
+            bot_app.add_handler(CommandHandler("watch", watch))
             bot_app.add_error_handler(error)
 
             # PTB v20+: initialize → updater.start_polling → start
@@ -65,13 +63,6 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
-    if _scheduler_task:
-        _scheduler_task.cancel()
-        try:
-            await _scheduler_task
-        except asyncio.CancelledError:
-            pass
-        logger.info("Scheduler dihentikan")
     if _bot_app:
         try:
             await _bot_app.updater.stop()
