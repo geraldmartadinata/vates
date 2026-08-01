@@ -21,3 +21,7 @@ data/*.db
 # OS
 .DS_Store
 Thumbs.db
+
+# SQLite WAL files
+*.db-wal
+*.db-shm

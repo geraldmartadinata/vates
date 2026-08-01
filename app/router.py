@@ -9,11 +9,13 @@ Routes:
 
 import logging
 from datetime import date
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import yfinance as yf
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -22,6 +24,10 @@ from services.indicators import compute_all
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Frontend build — dist/ di bawah frontend/
+FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+INDEX_HTML = FRONTEND_DIST / "index.html"
 
 
 def _serialize(obj):
@@ -45,6 +51,26 @@ def _serialize(obj):
 async def root():
     """Root — penanda bahwa server hidup."""
     return {"status": "Vates Core is running"}
+
+
+@router.get("/dashboard")
+async def dashboard():
+    """Serve frontend SPA (production build)."""
+    if not INDEX_HTML.exists():
+        raise HTTPException(
+            status_code=503,
+            detail="Frontend belum di-build. Jalankan: cd frontend && npm run build",
+        )
+    return FileResponse(INDEX_HTML)
+
+
+@router.get("/assets/{filename}")
+async def frontend_assets(filename: str):
+    """Serve frontend assets (JS/CSS)."""
+    asset = FRONTEND_DIST / "assets" / filename
+    if not asset.exists():
+        raise HTTPException(status_code=404, detail="Asset tidak ditemukan")
+    return FileResponse(asset)
 
 
 @router.get("/health")
