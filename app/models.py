@@ -27,3 +27,16 @@ class CachedPrice(Base):
 
     def __repr__(self) -> str:
         return f"<CachedPrice {self.ticker} {self.date.date()}>"
+
+
+class News(Base):
+    """Berita saham / event yang mempengaruhi harga."""
+    __tablename__ = "news"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ticker = Column(String(20), index=True, nullable=False)
+    title = Column(String(200), nullable=False)
+    content = Column(String(500))
+    published_at = Column(DateTime, nullable=False, server_default=func.now())
+    sentiment_score = Column(Float)
+    impact = Column(String(20), default="neutral")
