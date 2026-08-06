@@ -8,7 +8,9 @@ from services.labels import add_forward_labels
 
 
 def _frame(closes):
-    return pd.DataFrame({"date": pd.date_range("2026-01-01", periods=len(closes), freq="D"), "close": closes})
+    return pd.DataFrame(
+        {"date": pd.date_range("2026-01-01", periods=len(closes), freq="D"), "close": closes}
+    )
 
 
 class TestForwardLabels:

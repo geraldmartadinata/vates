@@ -9,7 +9,6 @@ Skenario:
 6. test_fetch_historical_unknown_ticker → mock return None/empty
 """
 
-from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
 import pandas as pd

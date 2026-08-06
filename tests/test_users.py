@@ -1,6 +1,5 @@
 """Fase 0 — test untuk User + UserWatchlist (memori per akun)."""
 
-from datetime import datetime
 
 import pytest
 from sqlalchemy import select

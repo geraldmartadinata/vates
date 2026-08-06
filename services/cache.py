@@ -3,8 +3,8 @@
 Menyediakan: get_cached_prices, save_prices, is_cache_fresh.
 """
 
+from collections.abc import Sequence
 from datetime import date, datetime, timedelta
-from typing import Sequence
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession

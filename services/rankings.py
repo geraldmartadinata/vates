@@ -7,7 +7,7 @@ Menyediakan:
 """
 
 import logging
-from typing import Sequence
+from collections.abc import Sequence
 
 from sqlalchemy import select
 
@@ -59,7 +59,10 @@ def rank_predictions(
     Returns:
         {"top": [...], "bottom": [...]} — tiap entri dict asli.
     """
-    filtered = [p for p in preds if p["horizon_days"] == horizon and p["predicted_prob"] is not None]
+    filtered = [
+        p for p in preds
+        if p["horizon_days"] == horizon and p["predicted_prob"] is not None
+    ]
     if not filtered:
         return {"top": [], "bottom": []}
 

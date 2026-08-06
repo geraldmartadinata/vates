@@ -138,7 +138,7 @@ async def get_stock(ticker: str, period: str = "1mo"):
         raise
     except Exception as e:
         logger.exception("Error fetching %s", normalized)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/api/v1/indicators/{ticker}")
@@ -170,7 +170,7 @@ async def get_indicators(ticker: str, period: str = "6mo"):
         try:
             enriched = compute_all(df, dropna=False)
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
         # Indikator terakhir
         last = enriched.iloc[-1]
@@ -209,7 +209,7 @@ async def get_indicators(ticker: str, period: str = "6mo"):
         raise
     except Exception as e:
         logger.exception("Error computing indicators for %s", normalized)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/api/v1/rankings/{horizon}")
@@ -279,7 +279,7 @@ async def get_prediction(ticker: str, db: AsyncSession = Depends(get_db)):
             ]
         except Exception as e:
             logger.exception("Live predict %s gagal", normalized)
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     if not ticker_preds:
         raise HTTPException(
@@ -318,6 +318,6 @@ async def analyze(ticker: str, db: AsyncSession = Depends(get_db)):
         result = await analyze_ticker(db, raw)
     except Exception as e:
         logger.exception("Analyze %s gagal", normalized)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
     return result

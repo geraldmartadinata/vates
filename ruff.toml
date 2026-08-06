@@ -1,0 +1,13 @@
+# Ruff config — rule set disengaja (high-value), bukan default agresif
+# Rule excluded: DTZ (naive datetime di tests acceptable), BLE/TRY (blind except
+# di scheduler sengaja sebagai boundary guard), preview rules
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["B008"]  # Function calls in default args (FastAPI Depends pattern)
+
+[lint.per-file-ignores]
+# Tests: naive datetime fixtures fine, fixtures tanpa return type
+"tests/*" = ["B011"]

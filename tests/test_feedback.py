@@ -1,6 +1,6 @@
 """Test services/feedback.py — resolve prediksi & klasifikasi miss."""
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 import pandas as pd
 import pytest
@@ -11,7 +11,6 @@ from services.feedback import resolve_pending
 
 def _seed_prices(session, ticker, start_date, horizon_days, closes):
     """Simpan harga harian dari start_date selama horizon_days+1 hari."""
-    import pandas as pd
 
     dates = pd.date_range(start_date, periods=horizon_days + 1, freq="D")
     df = pd.DataFrame({

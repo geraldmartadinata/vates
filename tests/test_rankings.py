@@ -6,7 +6,6 @@ import pytest
 
 from app.models import Prediction
 
-
 # --- recommendation() ---
 
 
@@ -126,8 +125,10 @@ async def test_latest_predictions_horizon_filter(db_session):
 
     now = datetime.utcnow()
     db_session.add_all([
-        Prediction(ticker="BBCA", horizon_days=1, predicted_prob=0.5, predicted_label=1, created_at=now),
-        Prediction(ticker="BBCA", horizon_days=30, predicted_prob=0.6, predicted_label=1, created_at=now),
+        Prediction(ticker="BBCA", horizon_days=1, predicted_prob=0.5, predicted_label=1,
+                  created_at=now),
+        Prediction(ticker="BBCA", horizon_days=30, predicted_prob=0.6, predicted_label=1,
+                  created_at=now),
     ])
     await db_session.commit()
 
@@ -142,7 +143,8 @@ async def test_latest_predictions_strips_jk_suffix(db_session):
 
     now = datetime.utcnow()
     db_session.add(
-        Prediction(ticker="BBCA.JK", horizon_days=30, predicted_prob=0.7, predicted_label=1, created_at=now)
+        Prediction(ticker="BBCA.JK", horizon_days=30, predicted_prob=0.7, predicted_label=1,
+                   created_at=now)
     )
     await db_session.commit()
 

@@ -170,7 +170,7 @@ class TestBollingerBands:
 
 class TestCleanIndicators:
     def test_clean_removes_nan(self, twenty_series):
-        from services.indicators import sma, clean_indicators
+        from services.indicators import clean_indicators, sma
 
         df = sma(twenty_series.copy(), period=10)
         n_before = len(df)

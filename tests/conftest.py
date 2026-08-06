@@ -1,6 +1,6 @@
 """Fixtures bersama — SQLite in-memory untuk semua test async."""
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 import pandas as pd
 import pytest_asyncio

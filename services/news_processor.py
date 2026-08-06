@@ -105,7 +105,7 @@ def fetch_news(ticker: str, query: str | None = None, limit: int = 20) -> list[d
         with urllib.request.urlopen(req, timeout=15) as resp:
             xml_bytes = resp.read()
     except Exception as exc:
-        raise RuntimeError(f"Gagal fetch berita {ticker}: {exc}")
+        raise RuntimeError(f"Gagal fetch berita {ticker}: {exc}") from exc
 
     items = _parse_rss(xml_bytes, limit=limit)
     for it in items:

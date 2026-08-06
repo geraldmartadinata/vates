@@ -1,15 +1,13 @@
-from contextlib import asynccontextmanager
-
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from telegram.ext import Application, CommandHandler
 
+from app.bot import error, indikator, prediksi, saham, start, watch
 from app.config import get_settings
 from app.database import Base, async_session_factory, engine
 from app.router import router
-
-from app.bot import start, saham, indikator, prediksi, watch, error
 
 logger = logging.getLogger(__name__)
 

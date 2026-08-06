@@ -8,7 +8,7 @@ import logging
 import pandas as pd
 
 from services.data_engine import fetch_historical
-from services.features import FEATURE_COLS, build_ml_frame, select_columns
+from services.features import build_ml_frame, select_columns
 from services.news_processor import fetch_news
 from services.trainer import evaluate_walk_forward
 

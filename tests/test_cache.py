@@ -11,7 +11,6 @@ Skenario:
 
 from datetime import date, datetime, timedelta
 
-import pandas as pd
 import pytest
 
 from app.models import CachedPrice
@@ -32,6 +31,7 @@ async def test_cache_miss(db_session, sample_ticker):
 async def test_cache_hit(db_session, sample_ticker, sample_ohlcv_df):
     """RED: Save lalu query — harus return 1 row."""
     from datetime import date
+
     from services.cache import get_cached_prices, save_prices
 
     await save_prices(db_session, sample_ticker, sample_ohlcv_df)
@@ -49,6 +49,7 @@ async def test_cache_hit(db_session, sample_ticker, sample_ohlcv_df):
 async def test_save_and_retrieve_by_range(db_session, sample_ticker, sample_ohlcv_df):
     """RED: Save 5 baris, query seluruh range → 5 baris."""
     from datetime import date
+
     from services.cache import get_cached_prices, save_prices
 
     await save_prices(db_session, sample_ticker, sample_ohlcv_df)
@@ -64,6 +65,7 @@ async def test_save_and_retrieve_by_range(db_session, sample_ticker, sample_ohlc
 async def test_cache_upsert(db_session, sample_ticker, sample_ohlcv_df):
     """RED: Save df yg sama 2x → tetap 5 baris (no duplicate row)."""
     from datetime import date
+
     from services.cache import get_cached_prices, save_prices
 
     await save_prices(db_session, sample_ticker, sample_ohlcv_df)
@@ -88,11 +90,10 @@ async def test_is_cache_fresh(db_session, sample_ticker, sample_ohlcv_df):
 @pytest.mark.asyncio
 async def test_is_cache_stale(db_session, sample_ticker):
     """RED: Data lama (30 hari lalu) → stale."""
-    from services.cache import is_cache_fresh
+    from sqlalchemy import insert
 
     # Insert data langsung via raw SQL — tanggal kemarin-lama
-    from app.database import Base
-    from sqlalchemy import insert
+    from services.cache import is_cache_fresh
 
     old_date = date.today() - timedelta(days=30)
     stmt = insert(CachedPrice).values(

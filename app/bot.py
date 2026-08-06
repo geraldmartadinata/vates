@@ -118,7 +118,6 @@ async def saham(update, context):
     ticker = normalize_ticker(raw)
 
     try:
-        session = None  # akan di-set oleh context.bot_data nanti
         # Ambil session dari bot_data yang di-inject saat setup
         session_factory = context.bot_data.get("session_factory")
         if session_factory:
@@ -126,8 +125,9 @@ async def saham(update, context):
                 df = await fetch_historical(db_sesh, raw, period="1mo", force_fetch=False)
         else:
             # Fallback — fetch tanpa cache
-            from services.data_engine import _prepare_df
             import yfinance as yf
+
+            from services.data_engine import _prepare_df
             yf_ticker = yf.Ticker(ticker)
             df = yf_ticker.history(period="1mo")
             df = _prepare_df(df)
@@ -147,7 +147,11 @@ async def saham(update, context):
         # Ambil baris terakhir
         if isinstance(df, list):
             last = df[-1]
-            date_str = last.date.strftime("%d %b %Y") if hasattr(last.date, "strftime") else str(last.date)
+            date_str = (
+                last.date.strftime("%d %b %Y")
+                if hasattr(last.date, "strftime")
+                else str(last.date)
+            )
             reply = (
                 f"{_bold(ticker)} — {date_str}\n"
                 f"{_code(f'Open : Rp {_escape(last.open)}')}\n"
@@ -158,23 +162,27 @@ async def saham(update, context):
             )
         else:
             last = df.iloc[-1]
-            date_str = last.name.strftime("%d %b %Y") if hasattr(last.name, "strftime") else str(last["date"])
+            date_str = (
+                last.name.strftime("%d %b %Y")
+                if hasattr(last.name, "strftime")
+                else str(last["date"])
+            )
             o = _escape(last.get("open", 0))
             h = _escape(last.get("high", 0))
-            l = _escape(last.get("low", 0))
+            lo = _escape(last.get("low", 0))
             c = _escape(last.get("close", 0))
             v = _escape(int(last.get("volume", 0)))
             reply = (
                 f"{_bold(ticker)} — {date_str}\n"
                 f"{_code(f'Open : Rp {o}')}\n"
                 f"{_code(f'High : Rp {h}')}\n"
-                f"{_code(f'Low  : Rp {l}')}\n"
+                f"{_code(f'Low  : Rp {lo}')}\n"
                 f"{_code(f'Close: Rp {c}')}\n"
                 f"{_code(f'Vol  : {v}')}"
             )
     except RuntimeError as e:
         reply = f"⛔ {e}"
-    except Exception as e:
+    except Exception:
         logger.exception("Error fetching %s", ticker)
         reply = f"⛔ Gagal memproses {ticker}. Coba lagi nanti."
 
@@ -200,6 +208,7 @@ async def indikator(update, context):
                 df = await fetch_historical(db_sesh, raw, period="6mo", force_fetch=False)
         else:
             import yfinance as yf
+
             from services.data_engine import _prepare_df
             yf_ticker = yf.Ticker(ticker)
             df = yf_ticker.history(period="6mo")
@@ -269,7 +278,7 @@ async def indikator(update, context):
         ohlcv_row = f"⛔ {e}"
     except RuntimeError as e:
         ohlcv_row = f"⛔ {e}"
-    except Exception as e:
+    except Exception:
         logger.exception("Error computing indicators for %s", ticker)
         ohlcv_row = f"⛔ Gagal memproses indikator {ticker}. Coba lagi nanti."
 
@@ -325,7 +334,7 @@ async def prediksi(update, context):
                      "otomatis belajar dari hasil harian.</i>")
         await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
-    except Exception as e:
+    except Exception:
         logger.exception("Error predicting %s", ticker)
         await update.message.reply_text(
             f"⛔ Gagal memprediksi {ticker}. Coba lagi nanti."
