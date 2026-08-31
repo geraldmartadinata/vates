@@ -16,6 +16,7 @@ import pandas as pd
 import yfinance as yf
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -24,6 +25,13 @@ from services.indicators import compute_all
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+class ScreenRequest(BaseModel):
+    """Request body untuk /api/v1/screen."""
+    tickers: list[str]
+    horizon: int = 30
+    top_n: int = 10
 
 # Frontend build — dist/ di bawah frontend/
 FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
@@ -321,3 +329,67 @@ async def analyze(ticker: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e)) from e
 
     return result
+
+
+@router.post("/api/v1/screen")
+async def screen_universe(
+    req: ScreenRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Screen universe of tickers: run analyze_stock on each, return ranked.
+
+    Args:
+        req: ScreenRequest body {tickers, horizon, top_n}.
+        db: Database session.
+
+    Returns:
+        JSON: horizon, screened_count, results (list of analyze_stock output),
+              ranked: {top_buys, top_sells, neutrals} based on verdict.
+    """
+    from services.analyzer import analyze_stock
+
+    if req.horizon not in (1, 7, 30):
+        raise HTTPException(status_code=400, detail="horizon harus 1, 7, atau 30")
+
+    results = []
+    errors = []
+
+    for t in req.tickers:
+        try:
+            raw = t.strip().upper()
+            normalized = normalize_ticker(raw)
+            out = await analyze_stock(db, normalized, period="2y")
+            results.append(out)
+        except Exception as e:
+            errors.append({"ticker": t, "error": str(e)})
+
+    # Rank by verdict strength
+    def verdict_score(v):
+        order = {
+            "STRONG BUY": 3,
+            "BUY": 2,
+            "HOLD": 1,
+            "SELL": -1,
+            "STRONG SELL": -2,
+        }
+        return order.get(v.get("verdict", "HOLD"), 0)
+
+    sorted_results = sorted(results, key=lambda r: verdict_score(r["verdict"]), reverse=True)
+
+    buy_verdicts = ("STRONG BUY", "BUY")
+    sell_verdicts = ("STRONG SELL", "SELL")
+    top_buys = [r for r in sorted_results if r["verdict"]["verdict"] in buy_verdicts][: req.top_n]
+    top_sells = [r for r in sorted_results if r["verdict"]["verdict"] in sell_verdicts][: req.top_n]
+    neutrals = [r for r in sorted_results if r["verdict"]["verdict"] == "HOLD"][: req.top_n]
+
+    return {
+        "horizon": req.horizon,
+        "screened_count": len(results),
+        "errors": errors,
+        "results": results,
+        "ranked": {
+            "top_buys": top_buys,
+            "top_sells": top_sells,
+            "neutrals": neutrals,
+        },
+    }
