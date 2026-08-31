@@ -53,6 +53,18 @@ class TestNormalizeTicker:
         """ASII → ASII.JK"""
         assert normalize_ticker("ASII") == "ASII.JK"
 
+    def test_normalize_ticker_ihsg_composite_caret(self):
+        """^JKSE → ^JKSE (no .JK added)"""
+        assert normalize_ticker("^JKSE") == "^JKSE"
+
+    def test_normalize_ticker_ihsg_composite_plain(self):
+        """JKSE → ^JKSE (normalized to caret form)"""
+        assert normalize_ticker("JKSE") == "^JKSE"
+
+    def test_normalize_ticker_ihsg_composite_lowercase(self):
+        """jkse → ^JKSE"""
+        assert normalize_ticker("jkse") == "^JKSE"
+
 
 @pytest.mark.asyncio
 async def test_fetch_historical_success(db_session, sample_ticker):

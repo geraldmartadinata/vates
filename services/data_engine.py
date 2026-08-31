@@ -21,17 +21,26 @@ logger = logging.getLogger(__name__)
 # Ticker IHSG = 4 huruf alfabet murni (A-Z, a-z)
 _PATTERN_IHSG_TICKER = re.compile(r"^[A-Za-z]{4}$")
 
+# IHSG Composite Index di Yahoo Finance
+_IHSG_COMPOSITE = {"^JKSE", "JKSE"}
+
 
 def normalize_ticker(raw: str) -> str:
     """Normalisasi ticker IHSG — tambah suffix .JK jika 4 huruf murni.
 
     Args:
-        raw: Input ticker (contoh: "BBCA", "BBCA.JK", "AAPL", "bbca").
+        raw: Input ticker (contoh: "BBCA", "BBCA.JK", "AAPL", "bbca",
+             "^JKSE", "JKSE" untuk composite index).
 
     Returns:
         Ticker ternormalisasi dengan suffix .JK untuk saham IHSG.
+        Composite index (^JKSE) dikembalikan apa adanya.
     """
     ticker = raw.strip().upper()
+
+    # Composite index IHSG — tidak tambah .JK
+    if ticker in _IHSG_COMPOSITE:
+        return "^JKSE"
 
     # Jika sudah punya suffix .JK, balikin apa adanya
     if ticker.endswith(".JK"):
