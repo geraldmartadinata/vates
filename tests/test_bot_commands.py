@@ -1,12 +1,9 @@
 """Test untuk services/bot_commands.py."""
-import asyncio
-from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-import services.bot_commands as bc
 import services.analyzer as az
+import services.bot_commands as bc
 
 
 async def fake_analyze_up(session, ticker, period="2y"):

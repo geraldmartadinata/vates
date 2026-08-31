@@ -5,10 +5,8 @@ Modul ini dipasang sebagai plugin atau handler Telegram bot.
 """
 
 import logging
-from datetime import datetime, timezone
 
 from services.analyzer import analyze_stock
-from services.rankings import recommendation
 
 logger = logging.getLogger(__name__)
 
