@@ -61,6 +61,22 @@ async def root():
     return {"status": "Vates Core is running"}
 
 
+# Media type eksplisit — Windows registry sering salah map .js → application/json
+# (mimetypes.guess_type membaca HKEY_CLASSES_ROOT), Chrome strict-MIME tolak module.
+MEDIA_TYPES = {
+    ".js": "text/javascript",
+    ".css": "text/css",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".ico": "image/x-icon",
+    ".map": "application/json",
+}
+
+
 @router.get("/dashboard")
 async def dashboard():
     """Serve frontend SPA (production build)."""
@@ -69,16 +85,24 @@ async def dashboard():
             status_code=503,
             detail="Frontend belum di-build. Jalankan: cd frontend && npm run build",
         )
-    return FileResponse(INDEX_HTML)
+    return FileResponse(INDEX_HTML, media_type="text/html")
 
 
 @router.get("/assets/{filename}")
 async def frontend_assets(filename: str):
-    """Serve frontend assets (JS/CSS)."""
+    """Serve frontend assets (JS/CSS) — MIME eksplisit, anti path traversal."""
+    # Sanitasi: tolak path traversal (../ dsb)
+    if "/" in filename or "\\" in filename or ".." in filename:
+        raise HTTPException(status_code=400, detail="Filename tidak valid")
     asset = FRONTEND_DIST / "assets" / filename
-    if not asset.exists():
+    if not asset.is_file():
         raise HTTPException(status_code=404, detail="Asset tidak ditemukan")
-    return FileResponse(asset)
+    return FileResponse(
+        asset,
+        media_type=MEDIA_TYPES.get(asset.suffix.lower(), "application/octet-stream"),
+    )
+
+
 
 
 @router.get("/health")
@@ -393,3 +417,31 @@ async def screen_universe(
             "neutrals": neutrals,
         },
     }
+
+
+@router.get("/{filename:path}")
+async def frontend_public(filename: str):
+    """Serve file publik frontend + SPA fallback — route terakhir.
+
+    NOTE: route ini match-anything, didaftarkan PALING AKHIR di router
+    sehingga semua /api/v1/*, /health, /docs match lebih dulu.
+    Sanitasi path traversal via resolve() + is_relative_to.
+    """
+    # Sanitasi: resolve path, pastikan tetap di dalam FRONTEND_DIST
+    candidate = (FRONTEND_DIST / filename).resolve()
+    try:
+        candidate.relative_to(FRONTEND_DIST.resolve())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Path tidak valid")
+
+    if candidate.is_file():
+        return FileResponse(
+            candidate,
+            media_type=MEDIA_TYPES.get(
+                candidate.suffix.lower(), "application/octet-stream"
+            ),
+        )
+    # SPA fallback: route frontend tak dikenal → index.html (client router)
+    if INDEX_HTML.exists():
+        return FileResponse(INDEX_HTML, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Tidak ditemukan")
