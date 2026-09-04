@@ -17,9 +17,12 @@ async def fake_analyze_up(session, ticker, period="2y"):
         },
         "projection": {
             "horizons": [
-                {"horizon_days": 1, "prob_up": 0.7, "expected_return_pct": 0.01, "projected_close": 5050.0},
-                {"horizon_days": 7, "prob_up": 0.7, "expected_return_pct": 0.03, "projected_close": 5150.0},
-                {"horizon_days": 30, "prob_up": 0.7, "expected_return_pct": 0.05, "projected_close": 5250.0},
+                {"horizon_days": 1, "prob_up": 0.7, "expected_return_pct": 0.01,
+                 "projected_close": 5050.0},
+                {"horizon_days": 7, "prob_up": 0.7, "expected_return_pct": 0.03,
+                 "projected_close": 5150.0},
+                {"horizon_days": 30, "prob_up": 0.7, "expected_return_pct": 0.05,
+                 "projected_close": 5250.0},
             ],
         },
         "verdict": {"verdict": "BUY", "confidence": "high", "reasons": ["ok"]},
@@ -38,9 +41,12 @@ async def fake_analyze_down(session, ticker, period="2y"):
         },
         "projection": {
             "horizons": [
-                {"horizon_days": 1, "prob_up": 0.3, "expected_return_pct": -0.01, "projected_close": 4950.0},
-                {"horizon_days": 7, "prob_up": 0.3, "expected_return_pct": -0.03, "projected_close": 4850.0},
-                {"horizon_days": 30, "prob_up": 0.3, "expected_return_pct": -0.05, "projected_close": 4750.0},
+                {"horizon_days": 1, "prob_up": 0.3, "expected_return_pct": -0.01,
+                 "projected_close": 4950.0},
+                {"horizon_days": 7, "prob_up": 0.3, "expected_return_pct": -0.03,
+                 "projected_close": 4850.0},
+                {"horizon_days": 30, "prob_up": 0.3, "expected_return_pct": -0.05,
+                 "projected_close": 4750.0},
             ],
         },
         "verdict": {"verdict": "SELL", "confidence": "high", "reasons": ["ok"]},

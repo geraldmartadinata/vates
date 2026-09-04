@@ -6,7 +6,7 @@ Modul ini dipasang sebagai plugin atau handler Telegram bot.
 
 import logging
 
-from services.analyzer import analyze_stock
+from services import analyzer
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 async def cmd_analyze(session, ticker_raw: str) -> dict:
     """Handle /analyze BBCA. Return payload lengkap + format pesan singkat."""
     try:
-        out = await analyze_stock(session, ticker_raw, period="2y")
+        out = await analyzer.analyze_stock(session, ticker_raw, period="2y")
         v = out["verdict"]["verdict"]
         conf = out["verdict"]["confidence"]
         insight = out["insight"]
@@ -43,14 +43,18 @@ async def cmd_screen(session, tickers: list[str], horizon: int = 30) -> dict:
     errors = []
     for t in tickers:
         try:
-            out = await analyze_stock(session, t, period="2y")
+            out = await analyzer.analyze_stock(session, t, period="2y")
             results.append({
                 "ticker": t,
                 "verdict": out["verdict"]["verdict"],
                 "conf": out["verdict"]["confidence"],
                 "close": out["insight"]["close"],
                 "proj_30": next(
-                    (h["expected_return_pct"] for h in out["projection"]["horizons"] if h["horizon_days"] == 30),
+                    (
+                        h["expected_return_pct"]
+                        for h in out["projection"]["horizons"]
+                        if h["horizon_days"] == 30
+                    ),
                     0,
                 ),
             })

@@ -309,21 +309,21 @@ async def get_prediction(ticker: str, db: AsyncSession = Depends(get_db)):
 
 @router.post("/api/v1/analyze/{ticker}")
 async def analyze(ticker: str, db: AsyncSession = Depends(get_db)):
-    """Analisis lengkap: prediksi segar + harga + rekomendasi.
+    """Analisis lengkap: insight + proyeksi + verdict (analyzer v2).
 
     Args:
         ticker: Kode saham (contoh: BBCA).
 
     Returns:
-        JSON: ticker, close, macd_hist, preds, recommendation.
+        JSON: ticker, insight, projection{horizons}, verdict{verdict,confidence,reasons}, raw.
     """
-    from services.forecast import analyze_ticker
+    from services.analyzer import analyze_stock
 
     raw = ticker.strip().upper()
     normalized = normalize_ticker(raw)
 
     try:
-        result = await analyze_ticker(db, raw)
+        result = await analyze_stock(db, normalized, period="2y")
     except Exception as e:
         logger.exception("Analyze %s gagal", normalized)
         raise HTTPException(status_code=500, detail=str(e)) from e

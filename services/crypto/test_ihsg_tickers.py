@@ -1,6 +1,5 @@
 """Tests for ihsg_tickers.py and universe_fetch.py."""
-import pytest
-from services.crypto.ihsg_tickers import TICKERS, COMPOSITE
+from services.crypto.ihsg_tickers import COMPOSITE, TICKERS
 
 
 def test_tickers_non_empty():

@@ -9,6 +9,9 @@ from app.config import get_settings
 from app.database import Base, async_session_factory, engine
 from app.router import router
 
+# Bot command handlers (services layer)
+from services.bot_commands import cmd_analyze, cmd_screen
+
 logger = logging.getLogger(__name__)
 
 _bot_app: Application | None = None
@@ -36,12 +39,15 @@ async def lifespan(app: FastAPI):
             # Inject session factory ke bot_data agar handler bisa akses DB
             bot_app.bot_data["session_factory"] = async_session_factory
 
-            # Register handlers
+            # Register handlers — lama
             bot_app.add_handler(CommandHandler("start", start))
             bot_app.add_handler(CommandHandler("saham", saham))
             bot_app.add_handler(CommandHandler("indikator", indikator))
             bot_app.add_handler(CommandHandler("prediksi", prediksi))
             bot_app.add_handler(CommandHandler("watch", watch))
+            # Register handlers — baru (analyzer)
+            bot_app.add_handler(CommandHandler("analyze", _cmd_analyze_wrapper))
+            bot_app.add_handler(CommandHandler("screen", _cmd_screen_wrapper))
             bot_app.add_error_handler(error)
 
             # PTB v20+: initialize → updater.start_polling → start
@@ -69,6 +75,42 @@ async def lifespan(app: FastAPI):
             pass
         logger.info("Telegram bot stopped")
     await engine.dispose()
+
+
+# --- Wrapper handlers untuk inject session ---
+async def _cmd_analyze_wrapper(update, context):
+    session_factory = context.bot_data.get("session_factory")
+    if not session_factory:
+        await update.message.reply_text("Layanan belum siap. Coba lagi nanti.")
+        return
+    async with session_factory() as session:
+        result = await cmd_analyze(
+            session,
+            update.message.text.split(maxsplit=1)[1]
+            if len(update.message.text.split()) > 1
+            else "",
+        )
+        if result["ok"]:
+            await update.message.reply_text(result["message"], parse_mode="Markdown")
+        else:
+            await update.message.reply_text(f"❌ {result['message']}")
+
+
+async def _cmd_screen_wrapper(update, context):
+    session_factory = context.bot_data.get("session_factory")
+    if not session_factory:
+        await update.message.reply_text("Layanan belum siap. Coba lagi nanti.")
+        return
+    args = update.message.text.split()[1:]
+    if not args:
+        await update.message.reply_text("Gunakan: /screen BBCA TLKM BBRI")
+        return
+    async with session_factory() as session:
+        result = await cmd_screen(session, args)
+        if result["ok"]:
+            await update.message.reply_text(result["message"], parse_mode="Markdown")
+        else:
+            await update.message.reply_text(f"❌ {result['message']}")
 
 
 def create_app() -> FastAPI:

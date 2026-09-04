@@ -96,6 +96,8 @@ async def start(update, context):
         f"  {_code('/saham BBCA')} — Harga terkini\n"
         f"  {_code('/indikator BBCA')} — Indikator teknikal\n"
         f"  {_code('/prediksi BBCA')} — Probabilitas arah 1d/7d/30d\n"
+        f"  {_code('/analyze BBCA')} — Analisis lengkap (verdict + proyeksi)\n"
+        f"  {_code('/screen BBCA TLKM BBRI')} — Screening multi-saham\n"
         f"  {_code('/watch add BBCA')} — Tambah ke watchlist\n"
         f"  {_code('/watch remove BBCA')} — Hapus dari watchlist\n"
         f"  {_code('/watch list')} — Lihat watchlist\n\n"
